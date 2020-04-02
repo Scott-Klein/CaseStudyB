@@ -128,7 +128,7 @@ int CreateNewProcess(char **tokens, int numOfTokens)
 
 void ChangeDirectory(char *dest)
 {
-    if (chdir(dest)) // if there's an error lets hear it.
+    if (chdir(dest)) // if there's an error let's hear it.
     {
         perror("Directory change error: ");
     }
