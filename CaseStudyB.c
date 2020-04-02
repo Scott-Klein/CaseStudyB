@@ -1,46 +1,56 @@
-#ifdef _MSC_VER
-#define _CRT_SECURE_NO_WARNINGS
-#endif
-
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include<stdlib.h>
+#include <stdlib.h>
 
 #define MAX_WORDS 2
 
-int ReadLine(char* input);
-void tokenize(char* line, char** words, int* nwords);
-int CreateNewProcess(char** tokens, char* errorBuffer);
-int FindExecute(char** tokens);
+// Read a line from the user and writes it to the input array
+int ReadLine(char *input);
 
-void HandleStatus(int status, char* errorBuffer);
+// Separates a line of input into up to two different tokens
+void tokenize(char *line, char **words, int *nwords);
+
+// Runs the system call and catches specific problems into the error buffer
+int CreateNewProcess(char **tokens, int numOfTokens);
+
+// Runs createNewProcess on the tokens and makes sure that errors get handled
+void FindExecute(char **tokens, int numOfTokens);
+
+// Takes all status codes and the errorBuffer to collate it all on screen for the user easily.
+void HandleStatus(int status);
+
+// Built in change directory for the running process.
+void ChangeDirectory(char *destination);
 
 int main()
 {
-    int exit = 1, numInput = 0;
-    char input[4096], * words[MAX_WORDS];
+    printf("\nScotts Interpreter. Version 1\n");
+    int exit = 1, numInput;
+    char input[4096], *words[MAX_WORDS];
 
     while (ReadLine(input))
     {
+        numInput = 0;
         tokenize(input, words, &numInput);
-
-        FindExecute(words);
+        FindExecute(words, numInput);
     }
 
-    printf("\nGOOD BYE HUMAN!\n");
+    printf("\nGoodbye!\n");
     return 0;
 }
 
 // Returns 0 on exit condition
-int ReadLine(char* input)
+// Otherwise writes user input to the buffer char array.
+int ReadLine(char *input)
 {
-    printf("\nPlease enter input: ");
+    //printf("\nPlease enter input: ");
+    printf("%s$ ", getcwd(NULL, 100));
     if (fgets(input, 4096, stdin) > 0)
     {
-        return strcmp(input, "exit\n");
+        return strcmp(input, "exit\n"); // returns 0 if exit found
     }
     else
     {
@@ -48,70 +58,78 @@ int ReadLine(char* input)
     }
 }
 
-// Tokenize
-// loops while
+void FindExecute(char **tokens, int numOfTokens)
+{
+    if (!strcmp(tokens[0], "cd"))
+    {
+        ChangeDirectory(tokens[1]);
+    }
+    else
+    {
+        HandleStatus(CreateNewProcess(tokens, numOfTokens));
+    }
+}
 
-//Words read is less than max words
-//&&
-//strtok does not return a null pointer
-void tokenize(char* line, char** words, int* nwords)
+void HandleStatus(int status)
+{
+    if (WIFEXITED(status))
+    {
+        printf("Process Exited with status %d\n", WEXITSTATUS(status));
+    }
+    else
+    {
+        printf("Process exited Abnormally"); // notify user that an issue occurred.
+    }
+}
+
+/*      Tokenize
+loops while
+    Words read is less than max words
+    &&
+    strtok does not return a null pointer
+End Loop
+*/
+void tokenize(char *line, char **words, int *nwords)
 {
     *nwords = 1;
 
     for (words[0] = strtok(line, " \t\n"); (*nwords < MAX_WORDS) && (words[*nwords] = strtok(NULL, " \t\n")); *nwords = *nwords + 1)
-        ; /* empty body */
+        ;
     return;
 }
 
-int CreateNewProcess(char** tokens, char* errorBuffer)
+int CreateNewProcess(char **tokens, int numOfTokens)
 {
     pid_t pid = fork();
-    int status;
-    if (pid == -1)
+    int status = -1;
+    if (pid == -1) // process couldn't create.
     {
-        errorBuffer = "Could not fork a new process";
+        printf("Could not fork a new process");
     }
     else if (pid == 0) //executes for child
     {
-        printf("%s\n", tokens[0]);
-        printf("%s\n", tokens[1]);
-        execlp(tokens[0], tokens[0], tokens[1], NULL);
-        perror("What?? ");
+        if (numOfTokens == 1)
+        {
+            execlp(tokens[0], tokens[0], NULL);
+        }
+        else if (numOfTokens == 2)
+        {
+            execlp(tokens[0], tokens[0], tokens[1], NULL);
+        }
+        perror("Execution problem: ");
         exit(0);
     }
     else if (pid > 0) // executes for parent
     {
         wait(&status);
     }
-    else // Should never execute but maybe it will, I don't know everything.
-    {
-        errorBuffer = "A strange error occured and I have no idea what happened";
-    }
     return status;
 }
 
-int FindExecute(char** tokens)
+void ChangeDirectory(char *dest)
 {
-    char error[60] = "\0";
-
-    int status = CreateNewProcess(tokens, error);
-
-    HandleStatus(status, error);
-
-    return 0;
-}
-
-void HandleStatus(int status, char* errorBuffer)
-{
-    printf("%s", errorBuffer);
-
-    if (WIFEXITED(status))
+    if (chdir(dest)) // if there's an error lets hear it.
     {
-        printf("Process Exited Normally.");
-    }
-    else
-    {
-        printf("Process exited Abnormally");
+        perror("Directory change error: ");
     }
 }
-
